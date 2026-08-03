@@ -682,15 +682,24 @@ async function saveM(){
     else if(mT==='titulo'){table='titulos';const cap=parseFloat(g('f2'));if(!cap){toast('⚠️ Informe o capital!',true);sv.disabled=false;sv.textContent='Salvar';return;}const tr=g('f3');const n=C.titulos.length+1;data={codigo:mId?(C.titulos.find(x=>x.id===mId)||{}).codigo||`TJV-${String(n).padStart(3,'0')}`:`TJV-${String(n).padStart(3,'0')}`,empresa:g('f0'),tipo:g('f1'),capital:cap,taxa:tr?parseFloat(tr):null,prazo:parseInt(g('f4'))||1,vencimento:g('f5'),status:g('f6')};}
     else if(mT==='comunicado'){table='comunicados';const tit=g('f0'),corpo=g('f3');if(!tit||!corpo){toast('⚠️ Preencha título e texto!',true);sv.disabled=false;sv.textContent='Salvar';return;}const tag=g('f1');const lbls={'tag-info':'INFO','tag-urgente':'URGENTE','tag-copom':'COPOM','tag-pregao':'PREGÃO'};const tipos={'tag-info':'','tag-urgente':'urgente','tag-copom':'copom','tag-pregao':'pregao'};data={titulo:tit,tag,tag_label:lbls[tag],tipo:tipos[tag],data:g('f2')||new Date().toLocaleDateString('pt-BR'),corpo};}
     else if(mT==='pregao'){table='pregoes';if(!g('f1')){toast('⚠️ Informe a data!',true);sv.disabled=false;sv.textContent='Salvar';return;}data={numero:parseInt(g('f0'))||C.pregoes.length+1,data:g('f1'),hora:g('f2'),tipo:g('f3'),status:g('f4'),destaque:g('f5')};}
-    let err;if(mId)({error:err}=await sb.from(table).update(data).eq('id',mId));else({error:err}=await sb.from(table).insert(data));
-    if(err){toast('⚠️ Erro: '+err.message,true);sv.disabled=false;sv.textContent='Salvar';return;}
+    const resp=await fetch(`${SB_URL}/functions/v1/admin-write`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userHash:ADMIN_UHASH,passHash:ADMIN_PHASH,table,op:mId?'update':'insert',id:mId||undefined,data})});
+    const res=await resp.json().catch(()=>({}));
+    if(!resp.ok||!res.ok){toast('⚠️ Erro: '+(res.error||'falha ao salvar'),true);sv.disabled=false;sv.textContent='Salvar';return;}
     await loadAll();buildAdminAll();closeModal();toast(mId?'✓ Atualizado!':'✓ Cadastrado!');
   }catch(e){toast('⚠️ Erro inesperado.',true);sv.disabled=false;sv.textContent='Salvar';}
 }
 let pDel={type:null,id:null};
 function openCf(type,id,name){pDel={type,id};document.getElementById('cfMsg').textContent=`Deseja excluir "${name}"? Esta ação não pode ser desfeita.`;document.getElementById('cfYes').onclick=execDel;document.getElementById('cfOv').classList.add('show');}
 function closeCf(){document.getElementById('cfOv').classList.remove('show');pDel={type:null,id:null};}
-async function execDel(){if(!isAdmin){toast('⚠️ Acesso não autorizado.',true);closeCf();return;}const tmap={empresa:'empresas',selic:'selic',titulo:'titulos',comunicado:'comunicados',pregao:'pregoes'};const table=tmap[pDel.type];if(!table){closeCf();return;}const{error}=await sb.from(table).delete().eq('id',pDel.id);if(error){toast('⚠️ Erro ao excluir.',true);closeCf();return;}await loadAll();buildAdminAll();closeCf();toast('🗑 Excluído com sucesso.');}
+async function execDel(){
+  if(!isAdmin){toast('⚠️ Acesso não autorizado.',true);closeCf();return;}
+  const tmap={empresa:'empresas',selic:'selic',titulo:'titulos',comunicado:'comunicados',pregao:'pregoes'};
+  const table=tmap[pDel.type];if(!table){closeCf();return;}
+  const resp=await fetch(`${SB_URL}/functions/v1/admin-write`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userHash:ADMIN_UHASH,passHash:ADMIN_PHASH,table,op:'delete',id:pDel.id})});
+  const res=await resp.json().catch(()=>({}));
+  if(!resp.ok||!res.ok){toast('⚠️ Erro ao excluir.',true);closeCf();return;}
+  await loadAll();buildAdminAll();closeCf();toast('🗑 Excluído com sucesso.');
+}
 async function buildJornal(){
   const loading=document.getElementById('jornalLoading');const grid=document.getElementById('jornalGrid');const vazio=document.getElementById('jornalVazio');
   loading.style.display='block';grid.style.display='none';vazio.style.display='none';
@@ -736,7 +745,6 @@ function showPg(id,btn){if(id==='admin'&&!isAdmin){openLogin();return;}document.
   window.addEventListener('resize',resize);resize();loop();
 })();
 // ── LANÇAR PREGÃO ──
-const LP_SECRET='MercadoJovem@BC2026#Pregao';
 let lpLinhaId=0,lpEmpresas=[],lpIniciado=false;
 function initLancarPregao(){
   if(!lpIniciado){
@@ -814,29 +822,13 @@ async function lpSalvarPregao(){
   if(ops.some(o=>o.empresa_compradora===o.empresa_vendedora)){toast('⚠️ Compradora e vendedora iguais em alguma linha.',true);return;}
   const btn=document.getElementById('lp-btn-salvar');btn.disabled=true;btn.textContent='Salvando...';
   try{
-    const r=await fetch(`${SB_URL}/functions/v1/lancar-pregao`,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+LP_SECRET},body:JSON.stringify({pregao:{numero:num,data,observacao:document.getElementById('lp-obs').value.trim()},operacoes:ops})});
+    const r=await fetch(`${SB_URL}/functions/v1/lancar-pregao`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userHash:ADMIN_UHASH,passHash:ADMIN_PHASH,pregao:{numero:num,data,observacao:document.getElementById('lp-obs').value.trim()},operacoes:ops})});
     const res=await r.json();if(!r.ok)throw new Error(res.error||'Erro desconhecido');
-    await lpAtualizarCotacoes(ops);
     toast(`✓ Pregão nº ${num} salvo! Cotações atualizadas automaticamente.`);
     document.getElementById('lp-tbody').innerHTML='';lpLinhaId=0;document.getElementById('lp-num').value='';lpAddLinhas(3);lpCarregarHistorico();
     await loadAll();
   }catch(e){toast('⚠️ Erro: '+e.message,true);}
   finally{btn.disabled=false;btn.textContent='✓ Salvar e Publicar';}
-}
-async function lpAtualizarCotacoes(ops){
-  // Preço da última negociação de cada empresa atualiza sua cotação
-  // A empresa vendedora vende SUAS cotas — preço negociado define o novo valor de mercado
-  const ultimoPreco={};
-  ops.forEach(op=>{ultimoPreco[op.empresa_vendedora]=op.valor_por_cota;});
-  for(const[nome,precoCota] of Object.entries(ultimoPreco)){
-    const emp=C.empresas.find(e=>e.nome===nome);
-    if(!emp)continue;
-    const totalCotas=Number(emp.cotas||1000000);
-    const valorAnt=Number(emp.valor);
-    const novoValor=precoCota*totalCotas;
-    const variacao=valorAnt>0?((novoValor-valorAnt)/valorAnt)*100:0;
-    await sb.from('empresas').update({valor:novoValor,variacao:parseFloat(variacao.toFixed(2))}).eq('nome',nome);
-  }
 }
 async function lpCarregarHistorico(){
   const el=document.getElementById('lp-hist-body');if(!el)return;

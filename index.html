@@ -574,7 +574,7 @@ async function doLogin(){
 function doLogout(){isAdmin=false;ADMIN_UHASH='';ADMIN_PHASH='';document.getElementById('navAdmin').classList.remove('show','active');const b=document.getElementById('btnLt');b.textContent='⚙ Admin';b.className='btn-lt';b.onclick=openLogin;showPg('home',document.querySelector('.nb'));toast('Sessão encerrada.');}
 async function loadAll(){
   try{
-    const[e,s,t,c,p,cfg]=await Promise.all([sb.from('empresas').select('*').order('valor',{ascending:false}),sb.from('selic').select('*').order('created_at',{ascending:true}),sb.from('titulos').select('*').order('id',{ascending:true}),sb.from('comunicados').select('*').order('created_at',{ascending:false}),sb.from('pregoes').select('*').order('numero',{ascending:true}),sb.from('config').select('*').eq('id',1).single()]);
+    const[e,s,t,c,p,cfg]=await Promise.all([sb.from('empresas').select('*').order('valor',{ascending:false}),sb.from('selic').select('*').order('created_at',{ascending:true}),sb.from('titulos').select('*').order('id',{ascending:true}),sb.from('comunicados').select('*').order('created_at',{ascending:false}),sb.from('pregoes').select('*').order('numero',{ascending:true}),sb.from('config').select('id,nome_projeto,subtitulo,home_sub,ticker_visivel,ticker_label,ticker_modo,ticker_manual').eq('id',1).single()]);
     C.empresas=e.data||[];C.selic=s.data||[];C.titulos=t.data||[];C.comunicados=c.data||[];C.pregoes=p.data||[];C.config=cfg.data||{};applyConfig();
   }catch(err){toast('⚠️ Erro ao carregar dados.',true);}
 }
